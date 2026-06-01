@@ -1,6 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { GraduationCap, Mail, Apple, ArrowLeft, Sparkles } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { GraduationCap, Mail, Apple, ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -12,37 +14,62 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-// Domaines email autorisés (anti-jetables)
-const ALLOWED_DOMAINS = [
-  "gmail.com", "googlemail.com",
-  "outlook.com", "hotmail.com", "live.com", "msn.com",
-  "yahoo.com", "yahoo.fr",
-  "icloud.com", "me.com", "mac.com",
-  "protonmail.com", "proton.me", "pm.me",
-  "orange.fr", "free.fr", "laposte.net", "sfr.fr", "wanadoo.fr",
-];
-
-function isAllowedEmail(email: string) {
-  const domain = email.toLowerCase().split("@")[1];
-  return !!domain && ALLOWED_DOMAINS.includes(domain);
-}
-
 function AuthPage() {
-  const [mode, setMode] = useState<"choice" | "email">("choice");
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"choice" | "signin" | "signup">("choice");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirige si déjà connecté
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/dashboard", replace: true });
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session) navigate({ to: "/dashboard", replace: true });
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!isAllowedEmail(email)) {
-      setError("Cet email n'est pas accepté. Utilise Gmail, Outlook, Yahoo, iCloud ou ProtonMail.");
-      return;
+    setLoading(true);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: { display_name: name },
+          },
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+    } finally {
+      setLoading(false);
     }
-    // Démo : redirige vers le dashboard
-    window.location.href = "/dashboard";
+  };
+
+  const handleGoogle = async () => {
+    setError("");
+    setLoading(true);
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin + "/dashboard",
+    });
+    if (result.error) {
+      setError(result.error instanceof Error ? result.error.message : "Connexion Google impossible.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,32 +87,45 @@ function AuthPage() {
               <GraduationCap className="h-8 w-8 text-primary-foreground" />
             </div>
             <h1 className="font-display text-4xl font-extrabold tracking-tight">
-              {mode === "choice" ? "Bienvenue sur FlexyMentor" : "Crée ton compte"}
+              {mode === "choice" ? "Bienvenue sur FlexyMentor" : mode === "signup" ? "Crée ton compte" : "Bon retour !"}
             </h1>
             <p className="mt-3 text-muted-foreground">
-              {mode === "choice" ? "Tes cours deviennent un jeu d'enfant." : "Quelques infos et c'est parti."}
+              {mode === "choice" ? "Tes cours deviennent un jeu d'enfant." : mode === "signup" ? "Quelques infos et c'est parti." : "Connecte-toi pour continuer."}
             </p>
           </div>
 
           <div className="rounded-3xl bg-gradient-card border border-border shadow-card p-7 animate-fade-up" style={{ animationDelay: "0.1s" }}>
             {mode === "choice" ? (
               <div className="space-y-3">
-                <AuthButton icon={<GoogleIcon />} label="Continuer avec Google" />
-                <AuthButton icon={<Apple className="h-5 w-5" />} label="Continuer avec Apple" />
+                <AuthButton icon={<GoogleIcon />} label="Continuer avec Google" onClick={handleGoogle} disabled={loading} />
                 <AuthButton
                   icon={<Mail className="h-5 w-5" />}
-                  label="Continuer avec Email"
+                  label="Créer un compte"
                   primary
-                  onClick={() => setMode("email")}
+                  onClick={() => setMode("signup")}
                 />
+                <button
+                  type="button"
+                  onClick={() => setMode("signin")}
+                  className="w-full text-sm text-muted-foreground hover:text-foreground transition-smooth pt-2"
+                >
+                  J'ai déjà un compte → Se connecter
+                </button>
+                {error && (
+                  <div className="rounded-xl bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
                 <p className="text-xs text-center text-muted-foreground pt-3">
                   En continuant, tu acceptes nos conditions d'utilisation.
                 </p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <Field label="Nom" value={name} onChange={setName} placeholder="Ton prénom" type="text" />
-                <Field label="Email" value={email} onChange={setEmail} placeholder="toi@gmail.com" type="email" />
+                {mode === "signup" && (
+                  <Field label="Nom" value={name} onChange={setName} placeholder="Ton prénom" type="text" />
+                )}
+                <Field label="Email" value={email} onChange={setEmail} placeholder="toi@email.com" type="email" />
                 <Field label="Mot de passe" value={password} onChange={setPassword} placeholder="Au moins 8 caractères" type="password" />
                 {error && (
                   <div className="rounded-xl bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
@@ -94,16 +134,18 @@ function AuthPage() {
                 )}
                 <button
                   type="submit"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-hero px-6 py-3.5 text-base font-semibold text-primary-foreground shadow-glow hover:scale-[1.01] transition-smooth"
+                  disabled={loading}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-hero px-6 py-3.5 text-base font-semibold text-primary-foreground shadow-glow hover:scale-[1.01] transition-smooth disabled:opacity-60"
                 >
-                  <Sparkles className="h-4 w-4" /> Créer mon compte
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {mode === "signup" ? "Créer mon compte" : "Se connecter"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("choice")}
                   className="w-full text-sm text-muted-foreground hover:text-foreground transition-smooth"
                 >
-                  ← Autres options de connexion
+                  ← Autres options
                 </button>
               </form>
             )}
@@ -115,12 +157,13 @@ function AuthPage() {
 }
 
 function AuthButton({
-  icon, label, primary, onClick,
-}: { icon: React.ReactNode; label: string; primary?: boolean; onClick?: () => void }) {
+  icon, label, primary, onClick, disabled,
+}: { icon: React.ReactNode; label: string; primary?: boolean; onClick?: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full inline-flex items-center justify-center gap-3 rounded-2xl px-6 py-3.5 text-base font-semibold transition-smooth ${
+      disabled={disabled}
+      className={`w-full inline-flex items-center justify-center gap-3 rounded-2xl px-6 py-3.5 text-base font-semibold transition-smooth disabled:opacity-60 ${
         primary
           ? "bg-gradient-hero text-primary-foreground shadow-glow hover:scale-[1.01]"
           : "bg-card border border-border hover:bg-accent"

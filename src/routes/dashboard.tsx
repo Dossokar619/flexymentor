@@ -1,26 +1,82 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
-  ScanLine, FileText, Sparkles, BookOpen, Brain, Mic, Trophy, History,
-  Home, Folder, Dumbbell, User, Search, Bell, GraduationCap,
+  ScanLine, FileText, Sparkles, BookOpen, Brain, Mic, Trophy,
+  Home, Folder, Dumbbell, User, Search, Bell, GraduationCap, LogOut, Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [{ title: "Accueil — FlexyMentor" }],
   }),
+  beforeLoad: async () => {
+    if (typeof window === "undefined") return;
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      throw redirect({ to: "/auth" });
+    }
+  },
   component: Dashboard,
 });
 
 const actions = [
-  { icon: ScanLine, title: "Scanner un cours", color: "from-blue-500 to-blue-600" },
-  { icon: FileText, title: "Importer un PDF", color: "from-violet-500 to-blue-500" },
-  { icon: Sparkles, title: "Résumer un texte", color: "from-cyan-500 to-blue-500" },
-  { icon: Brain, title: "Expliquer un cours", color: "from-indigo-500 to-violet-500" },
-  { icon: Dumbbell, title: "Générer exercices", color: "from-blue-600 to-cyan-500" },
-  { icon: Trophy, title: "Quiz intelligent", color: "from-violet-500 to-purple-500" },
+  { icon: ScanLine, title: "Scanner un cours" },
+  { icon: FileText, title: "Importer un PDF" },
+  { icon: Sparkles, title: "Résumer un texte" },
+  { icon: Brain, title: "Expliquer un cours" },
+  { icon: Dumbbell, title: "Générer exercices" },
+  { icon: Trophy, title: "Quiz intelligent" },
 ];
 
+interface Profile {
+  display_name: string | null;
+  streak_days: number;
+  courses_count: number;
+  quizzes_passed: number;
+}
+
 function Dashboard() {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate({ to: "/auth", replace: true });
+        return;
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, streak_days, courses_count, quizzes_passed")
+        .eq("id", user.id)
+        .maybeSingle();
+      setProfile(data ?? { display_name: user.email?.split("@")[0] ?? null, streak_days: 0, courses_count: 0, quizzes_passed: 0 });
+      setLoading(false);
+    };
+    load();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (!session) navigate({ to: "/auth", replace: true });
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-soft flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-soft pb-28">
       {/* Top bar */}
@@ -33,11 +89,19 @@ function Dashboard() {
             <span className="font-display font-bold">FlexyMentor</span>
           </Link>
           <div className="flex items-center gap-2">
-            <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth">
+            <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth" aria-label="Rechercher">
               <Search className="h-5 w-5" />
             </button>
-            <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth">
+            <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth" aria-label="Notifications">
               <Bell className="h-5 w-5" />
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth"
+              aria-label="Déconnexion"
+              title="Déconnexion"
+            >
+              <LogOut className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -46,7 +110,9 @@ function Dashboard() {
       <main className="container mx-auto max-w-3xl px-6 pt-8">
         {/* Greeting */}
         <div className="animate-fade-up">
-          <p className="text-sm font-medium text-muted-foreground">Bonjour 👋</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            Bonjour {profile?.display_name ?? ""} 👋
+          </p>
           <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight mt-1">
             Prêt à <span className="text-gradient">briller</span> aujourd'hui&nbsp;?
           </h1>
@@ -55,9 +121,9 @@ function Dashboard() {
         {/* Quick stats */}
         <div className="mt-6 grid grid-cols-3 gap-3 animate-fade-up" style={{ animationDelay: "0.05s" }}>
           {[
-            { label: "Cours", value: "12" },
-            { label: "Quiz réussis", value: "34" },
-            { label: "Série", value: "5j 🔥" },
+            { label: "Cours", value: profile?.courses_count ?? 0 },
+            { label: "Quiz réussis", value: profile?.quizzes_passed ?? 0 },
+            { label: "Série", value: `${profile?.streak_days ?? 0}j 🔥` },
           ].map((s) => (
             <div key={s.label} className="rounded-2xl bg-gradient-card border border-border p-4 shadow-card text-center">
               <div className="font-display text-xl font-bold">{s.value}</div>
@@ -80,29 +146,6 @@ function Dashboard() {
               </div>
               <div className="font-semibold text-sm leading-tight">{a.title}</div>
             </button>
-          ))}
-        </div>
-
-        {/* History */}
-        <h2 className="font-display text-lg font-bold mt-10 mb-4 flex items-center justify-between">
-          <span>Cours récents</span>
-          <button className="text-xs font-medium text-primary">Voir tout</button>
-        </h2>
-        <div className="space-y-3">
-          {[
-            { title: "Chapitre 4 — La Révolution française", subj: "Histoire", time: "Il y a 2h" },
-            { title: "Théorème de Pythagore", subj: "Mathématiques", time: "Hier" },
-            { title: "La photosynthèse", subj: "SVT", time: "Lundi" },
-          ].map((c) => (
-            <div key={c.title} className="flex items-center gap-4 rounded-2xl bg-gradient-card border border-border p-4 shadow-card hover:shadow-glow transition-smooth">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-                <BookOpen className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm truncate">{c.title}</div>
-                <div className="text-xs text-muted-foreground">{c.subj} · {c.time}</div>
-              </div>
-            </div>
           ))}
         </div>
 
