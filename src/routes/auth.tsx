@@ -5,8 +5,8 @@ import { GraduationCap, Mail, Apple, ArrowLeft, Sparkles } from "lucide-react";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Connexion — FlexyProf" },
-      { name: "description", content: "Connecte-toi à FlexyProf et commence à transformer tes cours grâce à l'IA." },
+      { title: "Connexion — FlexyMentor" },
+      { name: "description", content: "Connecte-toi à FlexyMentor et commence à transformer tes cours grâce à l'IA." },
     ],
   }),
   component: AuthPage,
@@ -60,7 +60,7 @@ function AuthPage() {
               <GraduationCap className="h-8 w-8 text-primary-foreground" />
             </div>
             <h1 className="font-display text-4xl font-extrabold tracking-tight">
-              {mode === "choice" ? "Bienvenue sur FlexyProf" : "Crée ton compte"}
+              {mode === "choice" ? "Bienvenue sur FlexyMentor" : "Crée ton compte"}
             </h1>
             <p className="mt-3 text-muted-foreground">
               {mode === "choice" ? "Tes cours deviennent un jeu d'enfant." : "Quelques infos et c'est parti."}

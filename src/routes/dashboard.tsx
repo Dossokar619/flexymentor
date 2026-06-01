@@ -6,7 +6,7 @@ import {
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
-    meta: [{ title: "Accueil — FlexyProf" }],
+    meta: [{ title: "Accueil — FlexyMentor" }],
   }),
   component: Dashboard,
 });
@@ -30,7 +30,7 @@ function Dashboard() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-hero shadow-md">
               <GraduationCap className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold">FlexyProf</span>
+            <span className="font-display font-bold">FlexyMentor</span>
           </Link>
           <div className="flex items-center gap-2">
             <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth">
@@ -115,7 +115,7 @@ function Dashboard() {
             </div>
             <div className="flex-1">
               <div className="font-display font-bold text-lg">Pose ta question à l'oral</div>
-              <p className="text-sm text-primary-foreground/85">FlexyProf t'écoute et te répond instantanément.</p>
+              <p className="text-sm text-primary-foreground/85">FlexyMentor t'écoute et te répond instantanément.</p>
             </div>
           </div>
         </div>
