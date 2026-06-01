@@ -1,87 +1,58 @@
-## Connexion de FlexyProf à GitHub + déploiement GitHub Pages
+## Audit des endpoints API — Flexymentor
 
-### Étape 1 — Connecter Lovable à ton repo GitHub existant
+### Inventaire constaté
 
-Cette partie ne nécessite aucun code, elle se fait dans l'interface Lovable :
+Le projet n'expose **qu'un seul endpoint serveur** :
 
-1. En haut à droite de l'éditeur Lovable, clique sur **GitHub** → **Connect to GitHub**.
-2. Autorise l'application **Lovable** sur ton compte GitHub.
-3. Choisis l'organisation/compte qui contient ton repo existant.
-4. Sélectionne le repo à connecter (FlexyProf).
-5. Lovable va alors pousser automatiquement tout le code actuel sur la branche `main`, et synchronisera dans les deux sens à chaque modification.
+| Endpoint | Type | Méthode | Auth | Validation | Données retournées |
+|---|---|---|---|---|---|
+| `getGreeting` (`src/lib/api/example.functions.ts`) | `createServerFn` | POST | ❌ Aucune | ✅ Zod `{ name: string min 1 }` | `{ greeting, mode }` |
 
-Une fois connecté :
-- Chaque modification faite dans Lovable apparaît comme un commit dans GitHub.
-- Chaque push fait directement sur GitHub se synchronise dans Lovable.
+**Aucun autre endpoint** :
+- Pas de routes sous `src/routes/api/`
+- Pas de webhook public (`/api/public/*`)
+- Pas de server route avec `server.handlers`
+- Pas d'Edge Function Supabase active
+- Accès données Supabase = direct depuis le client via RLS (pas un "endpoint API" applicatif)
 
-### Étape 2 — Avertissement important sur GitHub Pages
+### Analyse de risque par critère
 
-Ton projet FlexyProf utilise **TanStack Start**, un framework full-stack. Cela veut dire que certaines fonctionnalités ne fonctionneront PAS sur GitHub Pages, qui n'héberge que des fichiers statiques :
+1. **Authentification manquante**
+   - `getGreeting` : pas de `requireSupabaseAuth`. Accessible anonymement. **Risque faible** : la fonction est un exemple de démo, ne lit/écrit aucune donnée, ne consomme aucun secret externe. À supprimer si non utilisée, sinon ajouter le middleware le jour où elle traitera des données réelles.
 
-```text
-Ce qui marche sur GitHub Pages :
-  - Pages HTML / CSS / JS du front
-  - Images et assets
-  - Navigation entre routes (avec config spéciale)
+2. **Autorisation manquante**
+   - Pas de modèle de rôles, donc rien à autoriser. N/A.
 
-Ce qui NE marche PAS sur GitHub Pages :
-  - Server functions (createServerFn) — IA, OCR, auth serveur
-  - API routes (/api/*)
-  - SSR (Server-Side Rendering)
-  - Connexions sécurisées à Supabase / OpenAI
-  - Vérifications email OTP côté serveur
-```
+3. **Exposition excessive de données**
+   - `getGreeting` retourne `config.nodeEnv` (`"development"` / `"production"`). **Risque très faible** (information publique, déjà déductible). À retirer par hygiène.
 
-Concrètement, pour FlexyProf cela signifie que **l'authentification, les appels à l'IA, la lecture OCR et la base de données ne fonctionneront pas** si tu déploies sur GitHub Pages tel quel. Tu n'auras qu'une vitrine statique.
+4. **Méthodes insécurisées**
+   - POST uniquement, pas de verbe dangereux exposé. Aucun handler raw HTTP, donc pas de risque CORS / preflight mal configuré. ✅
 
-### Étape 3 — Préparer l'export statique
+5. **Rate limiting manquant**
+   - Aucun rate limit. Conformément à la politique Lovable Cloud actuelle, le backend ne fournit pas de primitives de rate limiting — c'est une **lacune connue, non bloquante**. À traiter au niveau infra/CDN si abus constaté.
 
-Je vais configurer le projet pour générer une build statique compatible GitHub Pages :
+6. **Risques transverses**
+   - ⚠ `attachSupabaseAuth` non enregistré dans `src/start.ts` → tout futur endpoint protégé par `requireSupabaseAuth` répondra 401. À corriger **avant** d'ajouter le premier endpoint authentifié (déjà signalé dans l'audit Supabase).
+   - ✅ Pas de `supabaseAdmin` utilisé côté serveur → pas de bypass RLS accidentel.
+   - ✅ Pas de SSRF / injection : pas de `fetch(userInput)`, pas de SQL brut.
 
-1. **Ajouter un workflow GitHub Actions** (`.github/workflows/deploy.yml`) qui :
-   - se déclenche à chaque push sur `main`
-   - installe les dépendances avec `bun install`
-   - lance la build statique
-   - publie le résultat sur la branche `gh-pages` via l'action officielle `actions/deploy-pages`
-   - utilise `permissions: { contents: read, pages: write, id-token: write }` (principe du moindre privilège)
-   - épingle les actions tierces par SHA pour la sécurité
+### Verdict global
 
-2. **Adapter la config Vite** pour :
-   - définir `base: "/<nom-du-repo>/"` (nécessaire pour les URLs sur GitHub Pages)
-   - désactiver le SSR / les server functions dans la build
-   - basculer en mode SPA pure (rendu côté client uniquement)
+**Surface d'attaque API quasi nulle.** Le seul endpoint est un exemple inoffensif. Les vrais accès données passent par Supabase + RLS (audité séparément). Les recommandations sont préventives, pas correctives.
 
-3. **Désactiver / mettre en mode "demo" les fonctionnalités serveur** pour qu'elles n'apparaissent pas comme cassées :
-   - `/dashboard` et `/auth` afficheront un message "Mode démo — backend désactivé"
-   - Les boutons d'IA renverront un message explicatif
+### Recommandations (priorité)
 
-4. **Ajouter un fichier `.nojekyll`** dans `public/` (sinon GitHub Pages ignore les fichiers commençant par `_`).
+1. **P2** — Supprimer `getGreeting` s'il n'est pas utilisé, ou retirer `mode: config.nodeEnv` du retour.
+2. **P1** — Wirer `attachSupabaseAuth` dans `src/start.ts` (`functionMiddleware`) avant le premier `requireSupabaseAuth`.
+3. **P3** — Documenter la convention : tout nouveau endpoint applicatif = `createServerFn` + `requireSupabaseAuth` + Zod ; tout webhook externe = `src/routes/api/public/*` + vérification HMAC + Zod.
+4. **P3** — Pas de rate limiting au niveau code (limite plateforme connue). Le jour où un endpoint sensible est ajouté, prévoir un compteur applicatif côté Postgres (table `api_call_log` + check par minute).
 
-5. **Documentation** : créer un `DEPLOY.md` expliquant comment activer GitHub Pages dans **Settings → Pages → Source: GitHub Actions**.
+### Livrable
 
-### Étape 4 — Activer GitHub Pages côté GitHub
+Générer **`audit-api-flexymentor.pdf`** (3 pages, même style que les audits précédents via `reportlab`) :
+- Page 1 : verdict + inventaire endpoints
+- Page 2 : tableau d'analyse par critère (6 critères × statut + risque)
+- Page 3 : recommandations priorisées + template d'endpoint sécurisé
 
-Après le premier push, dans ton repo GitHub :
-
-1. Va dans **Settings** → **Pages**.
-2. Sous **Source**, sélectionne **GitHub Actions**.
-3. Attends que le workflow se termine (onglet **Actions**).
-4. Ton site sera disponible à `https://<ton-user>.github.io/<nom-du-repo>/`.
-
-### Recommandation forte
-
-Étant donné que **FlexyProf a besoin d'un backend** (IA, OCR, auth, base de données), GitHub Pages n'est pas le bon hébergeur pour la version finale. Mon conseil :
-
-- **Court terme** : garder le déploiement **Lovable Publish** (déjà actif sur `flexy-study-buddy.lovable.app`), qui supporte tout le full-stack.
-- **GitHub Pages** : l'utiliser uniquement comme **vitrine marketing / landing page statique** pointant vers l'app Lovable.
-- **Long terme** : si tu veux quitter Lovable plus tard, migrer vers **Vercel** ou **Cloudflare Pages** qui supportent TanStack Start nativement.
-
-### Détails techniques
-
-- Framework : TanStack Start (Vite 7, React 19, TanStack Router)
-- Runtime cible actuel : Cloudflare Workers (via Nitro)
-- Pour l'export GitHub Pages : passage en mode SPA pure (`vite build` sans Nitro, output dans `dist/`)
-- Le routeur TanStack supportera GitHub Pages via le mode `hash` ou la config `basepath`
-- Aucun secret ne sera exposé dans les workflows (rien à configurer côté GitHub Secrets pour une build statique)
-
-Veux-tu que je procède avec ce plan, ou préfères-tu d'abord uniquement connecter le repo GitHub (étape 1) sans déployer sur GitHub Pages ?
+QA visuel obligatoire (conversion pages → images, vérif pas de débordement / glyphes cassés) avant livraison dans `/mnt/documents/`.
