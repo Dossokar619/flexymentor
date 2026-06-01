@@ -8,7 +8,7 @@ import heroImg from "@/assets/hero-students.jpg";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "FlexyProf — Tes cours deviennent un jeu d'enfant" },
+      { title: "FlexyMentor — Tes cours deviennent un jeu d'enfant" },
       { name: "description", content: "L'app IA qui résume, explique et transforme tes cours en quiz et exercices personnalisés." },
     ],
   }),
@@ -36,7 +36,7 @@ function Landing() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-hero shadow-glow">
               <GraduationCap className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="font-display text-xl font-bold tracking-tight">FlexyProf</span>
+            <span className="font-display text-xl font-bold tracking-tight">FlexyMentor</span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-smooth">Fonctionnalités</a>
@@ -62,7 +62,7 @@ function Landing() {
               Tes cours deviennent un <span className="text-gradient">jeu d'enfant</span>.
             </h1>
             <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-              FlexyProf scanne, résume, explique et transforme tes cours en quiz personnalisés.
+              FlexyMentor scanne, résume, explique et transforme tes cours en quiz personnalisés.
               L'app qui rend l'apprentissage <strong className="text-foreground font-semibold">simple, fluide et motivant</strong>.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -84,7 +84,7 @@ function Landing() {
             <div className="relative rounded-3xl overflow-hidden shadow-glow bg-gradient-card border border-border/50">
               <img
                 src={heroImg}
-                alt="Étudiants apprenant avec l'IA de FlexyProf"
+                alt="Étudiants apprenant avec l'IA de FlexyMentor"
                 width={1536}
                 height={1152}
                 className="w-full h-auto"
@@ -159,7 +159,7 @@ function Landing() {
             Prêt à transformer ta façon d'apprendre&nbsp;?
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Rejoins les étudiants qui révisent plus vite et mieux avec FlexyProf.
+            Rejoins les étudiants qui révisent plus vite et mieux avec FlexyMentor.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/auth" className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-hero px-8 py-4 text-base font-semibold text-primary-foreground shadow-glow hover:scale-[1.02] transition-smooth">
@@ -178,7 +178,7 @@ function Landing() {
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-hero">
               <GraduationCap className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display font-bold text-foreground">FlexyProf</span>
+            <span className="font-display font-bold text-foreground">FlexyMentor</span>
             <span>© {new Date().getFullYear()}</span>
           </div>
           <p>Fait avec ❤️ pour les étudiants.</p>

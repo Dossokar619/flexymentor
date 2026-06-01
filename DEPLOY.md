@@ -1,8 +1,8 @@
-# Déploiement de FlexyProf
+# Déploiement de FlexyMentor
 
 ## Vue d'ensemble
 
-FlexyProf peut être déployé de plusieurs façons. Voici les options et leurs limitations.
+FlexyMentor peut être déployé de plusieurs façons. Voici les options et leurs limitations.
 
 | Plateforme | Frontend | Backend (IA, OCR, Auth) | Recommandé pour |
 |------------|----------|-------------------------|-----------------|
