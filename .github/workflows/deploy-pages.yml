@@ -1,0 +1,81 @@
+name: Deploy to GitHub Pages
+
+# Workflow GitHub Actions sécurisé pour publier FlexyProf sur GitHub Pages.
+# - Principe du moindre privilège : permissions minimales au niveau workflow
+# - Actions tierces épinglées par SHA (pas par tag mutable)
+# - Pas de secrets exposés (build statique uniquement)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Permissions minimales au niveau workflow (override par job si besoin)
+permissions: {}
+
+# Une seule exécution à la fois pour Pages
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        # actions/checkout@v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Bun
+        # oven-sh/setup-bun@v2.0.2
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build site
+        run: bun run build
+        env:
+          NODE_ENV: production
+
+      - name: Prepare Pages artifact
+        run: |
+          # TanStack Start produit son output dans .output/public (Nitro)
+          # ou dans dist/ selon la config. On gère les deux cas.
+          if [ -d ".output/public" ]; then
+            cp -r .output/public _site
+          elif [ -d "dist" ]; then
+            cp -r dist _site
+          else
+            echo "::error::Aucun dossier de build trouvé (.output/public ou dist)"
+            exit 1
+          fi
+          # .nojekyll évite que GitHub Pages ignore les fichiers _*
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        # actions/upload-pages-artifact@v3.0.1
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        # actions/deploy-pages@v4.0.5
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
