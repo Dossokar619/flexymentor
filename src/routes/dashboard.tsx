@@ -2,9 +2,10 @@ import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-ro
 import { useEffect, useState } from "react";
 import {
   ScanLine, FileText, Sparkles, BookOpen, Brain, Mic, Trophy,
-  Home, Folder, Dumbbell, User, Search, Bell, GraduationCap, LogOut, Loader2,
+  Home, Folder, Dumbbell, User, Search, Bell, GraduationCap, LogOut, Loader2, Shield, Building2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/components/tenant-provider";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -38,6 +39,7 @@ interface Profile {
 
 function Dashboard() {
   const navigate = useNavigate();
+  const { tenant, isSuperAdmin, isTenantAdmin } = useTenant();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -83,15 +85,26 @@ function Dashboard() {
       <header className="sticky top-0 z-40 backdrop-blur-xl bg-background/80 border-b border-border/50">
         <div className="container mx-auto max-w-3xl px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-hero shadow-md">
-              <GraduationCap className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="font-display font-bold">FlexyMentor</span>
+            {tenant?.logo_url ? (
+              <img src={tenant.logo_url} alt="" className="h-9 w-9 rounded-xl object-cover shadow-md" />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-hero shadow-md">
+                <GraduationCap className="h-4 w-4 text-primary-foreground" />
+              </div>
+            )}
+            <span className="font-display font-bold">{tenant?.name ?? "FlexyMentor"}</span>
           </Link>
           <div className="flex items-center gap-2">
-            <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth" aria-label="Rechercher">
-              <Search className="h-5 w-5" />
-            </button>
+            {isTenantAdmin && (
+              <Link to="/tenant-admin" className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth" aria-label="Administration organisation" title="Administration">
+                <Building2 className="h-5 w-5" />
+              </Link>
+            )}
+            {isSuperAdmin && (
+              <Link to="/super-admin" className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth" aria-label="Super Admin" title="Super Admin">
+                <Shield className="h-5 w-5" />
+              </Link>
+            )}
             <button className="h-10 w-10 inline-flex items-center justify-center rounded-full hover:bg-accent transition-smooth" aria-label="Notifications">
               <Bell className="h-5 w-5" />
             </button>
