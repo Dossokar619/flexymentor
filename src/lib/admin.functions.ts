@@ -200,10 +200,12 @@ export const setSystemSetting = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const tenantId = await getCallerTenantId(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("system_settings").upsert({
-      key: data.key, value: data.value, updated_by: context.userId, updated_at: new Date().toISOString(),
-    });
+      key: data.key, value: data.value, updated_by: context.userId,
+      updated_at: new Date().toISOString(), tenant_id: tenantId,
+    }, { onConflict: "tenant_id,key" });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
