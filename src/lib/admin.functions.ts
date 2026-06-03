@@ -122,6 +122,7 @@ export const upsertAnnouncement = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const tenantId = await getCallerTenantId(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (data.id) {
       const { error } = await supabaseAdmin.from("announcements")
@@ -130,7 +131,8 @@ export const upsertAnnouncement = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     } else {
       const { error } = await supabaseAdmin.from("announcements").insert({
-        title: data.title, body: data.body, published: data.published, created_by: context.userId,
+        title: data.title, body: data.body, published: data.published,
+        created_by: context.userId, tenant_id: tenantId,
       });
       if (error) throw new Error(error.message);
     }
