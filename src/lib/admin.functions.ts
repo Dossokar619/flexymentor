@@ -2,17 +2,31 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// Server-side admin guard: throws if caller is not admin.
+// Server-side admin guard: throws if caller is not admin/super_admin.
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
-    .eq("role", "admin")
+    .in("role", ["admin", "super_admin"])
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Forbidden: admin role required");
+}
+
+// Get the caller's active tenant id; throws if not set.
+async function getCallerTenantId(userId: string): Promise<string> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("active_tenant_id, tenant_id")
+    .eq("id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin role required");
+  const tid = data?.active_tenant_id ?? data?.tenant_id;
+  if (!tid) throw new Error("No active tenant for current user");
+  return tid;
 }
 
 export const getAdminOverview = createServerFn({ method: "GET" })
@@ -108,6 +122,7 @@ export const upsertAnnouncement = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const tenantId = await getCallerTenantId(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (data.id) {
       const { error } = await supabaseAdmin.from("announcements")
@@ -116,7 +131,8 @@ export const upsertAnnouncement = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     } else {
       const { error } = await supabaseAdmin.from("announcements").insert({
-        title: data.title, body: data.body, published: data.published, created_by: context.userId,
+        title: data.title, body: data.body, published: data.published,
+        created_by: context.userId, tenant_id: tenantId,
       });
       if (error) throw new Error(error.message);
     }
@@ -145,9 +161,10 @@ export const updateSubscription = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const tenantId = await getCallerTenantId(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("subscriptions").upsert({
-      user_id: data.userId, plan: data.plan, status: data.status,
+      user_id: data.userId, plan: data.plan, status: data.status, tenant_id: tenantId,
     }, { onConflict: "user_id" });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -183,10 +200,12 @@ export const setSystemSetting = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const tenantId = await getCallerTenantId(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("system_settings").upsert({
-      key: data.key, value: data.value, updated_by: context.userId, updated_at: new Date().toISOString(),
-    });
+      key: data.key, value: data.value, updated_by: context.userId,
+      updated_at: new Date().toISOString(), tenant_id: tenantId,
+    }, { onConflict: "tenant_id,key" });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
