@@ -2,17 +2,31 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// Server-side admin guard: throws if caller is not admin.
+// Server-side admin guard: throws if caller is not admin/super_admin.
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
-    .eq("role", "admin")
+    .in("role", ["admin", "super_admin"])
+    .limit(1);
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Forbidden: admin role required");
+}
+
+// Get the caller's active tenant id; throws if not set.
+async function getCallerTenantId(userId: string): Promise<string> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("active_tenant_id, tenant_id")
+    .eq("id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin role required");
+  const tid = data?.active_tenant_id ?? data?.tenant_id;
+  if (!tid) throw new Error("No active tenant for current user");
+  return tid;
 }
 
 export const getAdminOverview = createServerFn({ method: "GET" })
