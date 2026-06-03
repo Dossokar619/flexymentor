@@ -161,9 +161,10 @@ export const updateSubscription = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
+    const tenantId = await getCallerTenantId(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.from("subscriptions").upsert({
-      user_id: data.userId, plan: data.plan, status: data.status,
+      user_id: data.userId, plan: data.plan, status: data.status, tenant_id: tenantId,
     }, { onConflict: "user_id" });
     if (error) throw new Error(error.message);
     return { ok: true };
